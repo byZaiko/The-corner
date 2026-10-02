@@ -1,3 +1,134 @@
+-- Zaiko Key System (transparente estilo Zaiko, persistente)
+local CORRECT_KEY = "2kllx20m98"
+local KEY_FILE = "ZaikoKey.txt"
+
+local function readSavedKey()
+    local ok, res = pcall(function()
+        if isfile and isfile(KEY_FILE) then
+            return readfile(KEY_FILE)
+        end
+        return nil
+    end)
+    if ok then return res end
+    return nil
+end
+
+local function saveKey(k)
+    pcall(function()
+        if writefile then
+            writefile(KEY_FILE, k)
+        end
+    end)
+    getgenv().ZaikoKeySaved = k
+end
+
+local savedZaikoKey = readSavedKey()
+if getgenv().ZaikoKeySaved == CORRECT_KEY then savedZaikoKey = CORRECT_KEY end
+
+if savedZaikoKey ~= CORRECT_KEY then
+    local authorized = false
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "ZaikoKeyGui"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    pcall(function()
+        gui.Parent = game:GetService("CoreGui")
+    end)
+    if not gui.Parent then
+        gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.fromScale(1, 1)
+    bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    bg.BackgroundTransparency = 0.45
+    bg.BorderSizePixel = 0
+    bg.Parent = gui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.fromOffset(320, 200)
+    frame.Position = UDim2.fromScale(0.5, 0.5)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    frame.BackgroundTransparency = 0.12
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Transparency = 0.85
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = "Zaiko"
+    title.Font = Enum.Font.GothamBold
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.TextSize = 24
+    title.Parent = frame
+
+    local sub = Instance.new("TextLabel")
+    sub.Size = UDim2.new(1, 0, 0, 20)
+    sub.Position = UDim2.new(0, 0, 0, 48)
+    sub.BackgroundTransparency = 1
+    sub.Text = "The Corner • Key System"
+    sub.Font = Enum.Font.Gotham
+    sub.TextColor3 = Color3.fromRGB(170, 170, 180)
+    sub.TextSize = 13
+    sub.Parent = frame
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, -32, 0, 38)
+    box.Position = UDim2.new(0, 16, 0, 78)
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    box.BackgroundTransparency = 0.15
+    box.PlaceholderText = "Pon tu key..."
+    box.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    box.Text = ""
+    box.Font = Enum.Font.Gotham
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.TextSize = 14
+    box.Parent = frame
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 8)
+    boxCorner.Parent = box
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -32, 0, 38)
+    btn.Position = UDim2.new(0, 16, 0, 126)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundTransparency = 0.1
+    btn.Text = "Confirmar"
+    btn.Font = Enum.Font.GothamBold
+    btn.TextColor3 = Color3.fromRGB(15, 15, 15)
+    btn.TextSize = 14
+    btn.AutoButtonColor = true
+    btn.Parent = frame
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        if box.Text == CORRECT_KEY then
+            saveKey(box.Text)
+            authorized = true
+            gui:Destroy()
+        else
+            btn.Text = "Key incorrecta"
+            task.delay(1, function()
+                if btn and btn.Parent then btn.Text = "Confirmar" end
+            end)
+        end
+    end)
+
+    repeat task.wait() until authorized
+end
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -226,7 +357,6 @@ local function setClickTp(on)
     end
 end
 
--- Anti-AFK
 local antiAfkOn = false
 local antiAfkConn = nil
 
@@ -250,7 +380,6 @@ local function setAntiAfk(on)
     end
 end
 
--- Spectate sigiloso con audio en cuartos privados (siempre activo, no mueve tu cuerpo)
 local spectateTarget = nil
 local spectateHum = nil
 local spectateToken = 0
@@ -382,7 +511,6 @@ getgenv().ZaikoStopSpectate = function()
     stopSpectate(true)
 end
 
--- Room Spy (solo metadata pública, sin grabar audio)
 local roomSpyAuto = false
 local roomSpyToken = 0
 local noRoomsList = { "(sin cuartos)" }
