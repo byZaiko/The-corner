@@ -174,7 +174,7 @@ pcall(function()
         end
     end
 end)
-getgenv().ZaikoVersion = "2026-10-03-tagfit"
+getgenv().ZaikoVersion = "2026-10-04-noauto"
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 pcall(function()
@@ -300,6 +300,28 @@ local function rootPart(character)
     return character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
 end
 
+-- Back: guarda tu sitio antes del TP y vuelve con el botón (sin loops, costo cero)
+local lastPosition = nil
+local function savePos()
+    local r = rootPart(player.Character)
+    if r then
+        lastPosition = r.CFrame
+    end
+end
+local function goBack()
+    if not lastPosition then
+        notify("Sin posición guardada.", 2)
+        return
+    end
+    local r = rootPart(player.Character)
+    if r then
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.CFrame = lastPosition
+        playTpSound()
+        notify("De vuelta.", 2)
+    end
+end
+
 local function teleportTo(target)
     local myRoot = rootPart(player.Character)
     local tChar = target and target.Character
@@ -412,10 +434,12 @@ local function setAntiAfk(on)
     end
 end
 
--- Ver invisibles: etiqueta bonita estilo Zaiko, se achica de lejos (solo cuando es invisible, 2x por segundo)
+-- Ver invisibles optimizado: revisa 1x por segundo y solo toca a quien cambió de estado
 local seeInvisibleOn = false
+local espMarked = {}
 
 local function clearAuras()
+    table.clear(espMarked)
     pcall(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             local char = plr.Character
@@ -453,14 +477,8 @@ local function isInvisibleChar(char)
     if ok and v == true then
         return true
     end
-    local ok2, res = pcall(function()
-        local head = char:FindFirstChild("Head")
-        if head and head:IsA("BasePart") and head.Transparency >= 0.7 then
-            return true
-        end
-        return false
-    end)
-    return ok2 and res
+    local head = char:FindFirstChild("Head")
+    return head and head:IsA("BasePart") and head.Transparency >= 0.7 or false
 end
 
 local function prettyTagName(plr)
@@ -468,6 +486,29 @@ local function prettyTagName(plr)
         return plr.DisplayName .. " (@" .. plr.Name .. ")"
     end
     return plr.Name
+end
+
+local function unmarkPlayer(plr)
+    espMarked[plr] = nil
+    local char = plr.Character
+    if not char then
+        return
+    end
+    local head = char:FindFirstChild("Head")
+    if head then
+        local tag = head:FindFirstChild("ZaikoTag")
+        if tag then pcall(function() tag:Destroy() end) end
+    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local bx = hrp:FindFirstChild("ZaikoBox")
+        if bx then pcall(function() bx:Destroy() end) end
+    end
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then
+            pcall(function() p.LocalTransparencyModifier = 0 end)
+        end
+    end
 end
 
 local function setSeeInvisible(on)
@@ -485,7 +526,7 @@ local function setSeeInvisible(on)
             return
         end
         acc += dt
-        if acc < 0.5 then
+        if acc < 1 then
             return
         end
         acc = 0
@@ -493,95 +534,86 @@ local function setSeeInvisible(on)
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= player then
                 local char = plr.Character
-                if char then
-                    if isInvisibleChar(char) then
-                        local head = char:FindFirstChild("Head")
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        local dist = 0
-                        if myRoot and hrp then
-                            dist = (myRoot.Position - hrp.Position).Magnitude
+                if char and isInvisibleChar(char) then
+                    local head = char:FindFirstChild("Head")
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if not head or not hrp then
+                        continue
+                    end
+                    local dist = 0
+                    if myRoot then
+                        dist = (myRoot.Position - hrp.Position).Magnitude
+                    end
+                    local sc = math.clamp(26 / math.max(dist, 9), 0.38, 1)
+                    local tag = head:FindFirstChild("ZaikoTag")
+                    if not tag then
+                        tag = Instance.new("BillboardGui")
+                        tag.Name = "ZaikoTag"
+                        tag.StudsOffsetWorldSpace = Vector3.new(0, 2.8, 0)
+                        tag.AlwaysOnTop = true
+                        tag.LightInfluence = 0
+                        local bg2 = Instance.new("Frame")
+                        bg2.Name = "Bg"
+                        bg2.Size = UDim2.fromScale(1, 1)
+                        bg2.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+                        bg2.BackgroundTransparency = 0.15
+                        bg2.BorderSizePixel = 0
+                        bg2.Parent = tag
+                        local bgC = Instance.new("UICorner")
+                        bgC.CornerRadius = UDim.new(0, 8)
+                        bgC.Parent = bg2
+                        local bgS = Instance.new("UIStroke")
+                        bgS.Color = Color3.fromRGB(170, 0, 255)
+                        bgS.Transparency = 0.3
+                        bgS.Thickness = 1
+                        bgS.Parent = bg2
+                        local pad = Instance.new("UIPadding")
+                        pad.PaddingLeft = UDim.new(0, 8)
+                        pad.PaddingRight = UDim.new(0, 8)
+                        pad.Parent = bg2
+                        local lbl = Instance.new("TextLabel")
+                        lbl.Name = "Lbl"
+                        lbl.Size = UDim2.fromScale(1, 1)
+                        lbl.BackgroundTransparency = 1
+                        lbl.Font = Enum.Font.GothamBold
+                        lbl.TextColor3 = Color3.new(1, 1, 1)
+                        lbl.TextTruncate = Enum.TextTruncate.AtEnd
+                        lbl.Parent = bg2
+                        tag.Parent = head
+                    end
+                    tag.Size = UDim2.fromOffset(math.floor(150 * sc), math.floor(30 * sc))
+                    local bg2 = tag:FindFirstChild("Bg")
+                    local lbl = bg2 and bg2:FindFirstChild("Lbl")
+                    if lbl then
+                        local want = prettyTagName(plr)
+                        if lbl.Text ~= want then
+                            lbl.Text = want
                         end
-                        local sc = math.clamp(26 / math.max(dist, 9), 0.38, 1)
-                        if head then
-                            local tag = head:FindFirstChild("ZaikoTag")
-                            if not tag then
-                                tag = Instance.new("BillboardGui")
-                                tag.Name = "ZaikoTag"
-                                tag.StudsOffsetWorldSpace = Vector3.new(0, 2.8, 0)
-                                tag.AlwaysOnTop = true
-                                tag.LightInfluence = 0
-                                local bg2 = Instance.new("Frame")
-                                bg2.Name = "Bg"
-                                bg2.Size = UDim2.fromScale(1, 1)
-                                bg2.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-                                bg2.BackgroundTransparency = 0.15
-                                bg2.BorderSizePixel = 0
-                                bg2.Parent = tag
-                                local bgC = Instance.new("UICorner")
-                                bgC.CornerRadius = UDim.new(0, 8)
-                                bgC.Parent = bg2
-                                local bgS = Instance.new("UIStroke")
-                                bgS.Color = Color3.fromRGB(170, 0, 255)
-                                bgS.Transparency = 0.3
-                                bgS.Thickness = 1
-                                bgS.Parent = bg2
-                                local pad = Instance.new("UIPadding")
-                                pad.PaddingLeft = UDim.new(0, 8)
-                                pad.PaddingRight = UDim.new(0, 8)
-                                pad.Parent = bg2
-                                local lbl = Instance.new("TextLabel")
-                                lbl.Name = "Lbl"
-                                lbl.Size = UDim2.fromScale(1, 1)
-                                lbl.BackgroundTransparency = 1
-                                lbl.Font = Enum.Font.GothamBold
-                                lbl.TextColor3 = Color3.new(1, 1, 1)
-                                lbl.TextTruncate = Enum.TextTruncate.AtEnd
-                                lbl.Parent = bg2
-                                tag.Parent = head
-                            end
-                            tag.Size = UDim2.fromOffset(math.floor(150 * sc), math.floor(30 * sc))
-                            local bg2 = tag:FindFirstChild("Bg")
-                            local lbl = bg2 and bg2:FindFirstChild("Lbl")
-                            if lbl then
-                                lbl.Text = prettyTagName(plr)
-                                lbl.TextSize = math.max(9, math.floor(13 * sc))
-                            end
-                        end
-                        if hrp and not hrp:FindFirstChild("ZaikoBox") then
-                            pcall(function()
-                                local bx = Instance.new("BoxHandleAdornment")
-                                bx.Name = "ZaikoBox"
-                                bx.Adornee = hrp
-                                bx.Size = Vector3.new(4, 6, 3)
-                                bx.Color3 = Color3.fromRGB(170, 0, 255)
-                                bx.Transparency = 0.6
-                                bx.AlwaysOnTop = true
-                                bx.ZIndex = 5
-                                bx.Parent = hrp
-                            end)
-                        end
+                        lbl.TextSize = math.max(9, math.floor(13 * sc))
+                    end
+                    if not hrp:FindFirstChild("ZaikoBox") then
+                        pcall(function()
+                            local bx = Instance.new("BoxHandleAdornment")
+                            bx.Name = "ZaikoBox"
+                            bx.Adornee = hrp
+                            bx.Size = Vector3.new(4, 6, 3)
+                            bx.Color3 = Color3.fromRGB(170, 0, 255)
+                            bx.Transparency = 0.6
+                            bx.AlwaysOnTop = true
+                            bx.ZIndex = 5
+                            bx.Parent = hrp
+                        end)
+                    end
+                    if not espMarked[plr] then
+                        espMarked[plr] = true
                         for _, p in ipairs(char:GetDescendants()) do
                             if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
                                 pcall(function() p.LocalTransparencyModifier = -p.Transparency end)
                             end
                         end
-                    else
-                        local head = char:FindFirstChild("Head")
-                        if head then
-                            local tag = head:FindFirstChild("ZaikoTag")
-                            if tag then pcall(function() tag:Destroy() end) end
-                        end
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local bx = hrp:FindFirstChild("ZaikoBox")
-                            if bx then pcall(function() bx:Destroy() end) end
-                        end
-                        for _, p in ipairs(char:GetDescendants()) do
-                            if p:IsA("BasePart") then
-                                pcall(function() p.LocalTransparencyModifier = 0 end)
-                            end
-                        end
                     end
+                elseif espMarked[plr] then
+                    unmarkPlayer(plr)
                 end
             end
         end
@@ -708,7 +740,7 @@ local function startSpectate(target)
                     end
                 end
             end
-            task.wait(0.2)
+            task.wait(0.3)
         end
     end)
 
@@ -724,14 +756,8 @@ local roomSpyToken = 0
 local noRoomsList = { "(sin cuartos)" }
 
 local function getRoomFolder()
-    local ok, rooms = pcall(function()
-        local pr = workspace:FindFirstChild("PrivateRooms")
-        return pr and pr:FindFirstChild("Rooms")
-    end)
-    if ok then
-        return rooms
-    end
-    return nil
+    local pr = workspace:FindFirstChild("PrivateRooms")
+    return pr and pr:FindFirstChild("Rooms")
 end
 
 local function getOccupants(roomName)
@@ -902,10 +928,18 @@ Tabs.Teleport:AddButton({
 Tabs.Teleport:AddButton({
     Title = "Teleport",
     Callback = function()
+        savePos()
         local target = findPlayer(Options.ZaikoPlayer and Options.ZaikoPlayer.Value)
         if target then
             teleportTo(target)
         end
+    end,
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Volver (Back)",
+    Callback = function()
+        goBack()
     end,
 })
 
@@ -916,6 +950,7 @@ Tabs.Teleport:AddInput("ZaikoSearch", {
     Numeric = false,
     Finished = true,
     Callback = function(Value)
+        savePos()
         local target = findPlayer(Value)
         if target then
             teleportTo(target)
@@ -1021,30 +1056,10 @@ Tabs.Rooms:AddButton({
     Callback = function()
         local room = findRoomByLabel(Options.ZaikoRoom and Options.ZaikoRoom.Value)
         if room then
+            savePos()
             if not teleportToRoom(room.Name) then
                 notify("No se pudo entrar al Spawn.", 2)
             end
-        end
-    end,
-})
-
-Tabs.Rooms:AddToggle("ZaikoRoomAuto", {
-    Title = "Auto-actualizar cuartos",
-    Default = false,
-    Callback = function(Value)
-        roomSpyAuto = Value
-        roomSpyToken += 1
-        if Value then
-            local token = roomSpyToken
-            task.spawn(function()
-                while token == roomSpyToken and roomSpyAuto do
-                    pcall(refreshRooms, true)
-                    task.wait(4)
-                end
-            end)
-            notify("Room auto on.", 2)
-        else
-            notify("Room auto off.", 2)
         end
     end,
 })
@@ -1288,6 +1303,7 @@ track(Players.PlayerRemoving:Connect(function(plr)
     if spectateTarget == plr then
         stopSpectate(true)
     end
+    espMarked[plr] = nil
 end))
 
 getgenv().ZaikoCleanup = function()
