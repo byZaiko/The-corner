@@ -1,5 +1,5 @@
 -- Zaiko Key System (transparente estilo Zaiko, persistente)
-local CORRECT_KEY = "2kllx20m98"
+local CORRECT_KEY = "byzaiko20txknoventy573p"
 local KEY_FILE = "ZaikoKey.txt"
 
 local function readSavedKey()
